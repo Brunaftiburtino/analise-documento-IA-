@@ -24,7 +24,8 @@ class DocumentoValidacaoServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-11-04T12:00:00Z"), ZoneOffset.UTC);
         service = new DocumentoValidacaoService(
                 new ExtratorDadosService(),
-                new ValidacaoRegrasService(clock));
+                new ValidacaoRegrasService(clock),
+                new TesseractOcrService("", "", "por"));
     }
 
     @Test
@@ -65,6 +66,37 @@ class DocumentoValidacaoServiceTest {
         ResponseStatusException erro = assertThrows(
                 ResponseStatusException.class,
                 () -> service.validar(documento));
+
+        assertEquals(400, erro.getStatusCode().value());
+    }
+
+    @Test
+    void usaTextoComoFallbackQuandoImagemETextoSaoEnviadosSemTesseract() {
+        RespostaValidacao resposta = service.validar(new DadosDocumento(
+                "comprovante.png",
+                "image/png",
+                "Nome: Joao da Silva\nData de emissao: 10/08/2026",
+                "aW1hZ2Vt"));
+
+        assertEquals("Joao da Silva", resposta.dadosExtraidos().nome());
+        assertTrue(resposta.etapas().get(1).descricao().contains("Fallback local"));
+    }
+
+    @Test
+    void rejeitaImagemComBase64InvalidoQuandoTesseractEstaConfigurado() {
+        DocumentoValidacaoService serviceComOcr = new DocumentoValidacaoService(
+                new ExtratorDadosService(),
+                new ValidacaoRegrasService(Clock.systemUTC()),
+                new TesseractOcrService("tesseract", "", "por"));
+        DadosDocumento documento = new DadosDocumento(
+                "imagem.png",
+                "image/png",
+                "Nome: Joao",
+                "não-é-base64");
+
+        ResponseStatusException erro = assertThrows(
+                ResponseStatusException.class,
+                () -> serviceComOcr.validar(documento));
 
         assertEquals(400, erro.getStatusCode().value());
     }
