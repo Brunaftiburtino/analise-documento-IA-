@@ -25,7 +25,8 @@ class DocumentoValidacaoServiceTest {
         service = new DocumentoValidacaoService(
                 new ExtratorDadosService(),
                 new ValidacaoRegrasService(clock),
-                new TesseractOcrService("", "", "por"));
+                new TesseractOcrService("", "", "por"),
+                new OpenCvPreprocessamentoService(""));
     }
 
     @Test
@@ -87,7 +88,8 @@ class DocumentoValidacaoServiceTest {
         DocumentoValidacaoService serviceComOcr = new DocumentoValidacaoService(
                 new ExtratorDadosService(),
                 new ValidacaoRegrasService(Clock.systemUTC()),
-                new TesseractOcrService("tesseract", "", "por"));
+                new TesseractOcrService("tesseract", "", "por"),
+                new OpenCvPreprocessamentoService(""));
         DadosDocumento documento = new DadosDocumento(
                 "imagem.png",
                 "image/png",
