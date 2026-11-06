@@ -1,6 +1,6 @@
 # Validação de documentos com Java
 
-API didática em Spring Boot para demonstrar um pipeline de validação. O serviço recebe texto ou imagem, pode pré-processar a imagem com OpenCV e usar Tesseract para OCR, extrai campos com regras locais e aplica as regras de negócio. A integração com OpenAI será adicionada em etapa seguinte.
+API didática em Spring Boot para demonstrar um pipeline de validação. O serviço recebe texto ou imagem, pode pré-processar a imagem com OpenCV e usar Tesseract para OCR, interpreta os campos com OpenAI quando configurada (ou com regras locais como fallback) e aplica as regras de negócio.
 
 ## Requisitos e execução
 
@@ -80,4 +80,17 @@ app.ocr.tessdata-path=C:/tesseract/tessdata
 
 O OCR aceita imagens PNG, JPEG, TIFF e BMP. Quando configurado, o pré-processamento OpenCV ocorre antes do Tesseract. Ambos são executados localmente, sem passar argumentos por um shell.
 
-Se o Tesseract não estiver configurado e o request contiver `conteudoDocumento`, esse texto continua sendo usado como fallback. Sem texto e sem OCR configurado, a API retorna `400 Bad Request`. A extração estruturada continua sendo local e baseada em padrões de texto; a integração com OpenAI ainda não foi implementada.
+Se o Tesseract não estiver configurado e o request contiver `conteudoDocumento`, esse texto continua sendo usado como fallback. Sem texto e sem OCR configurado, a API retorna `400 Bad Request`.
+
+## Interpretação com OpenAI
+
+Configure uma chave de API para interpretar o texto reconhecido:
+
+```powershell
+$env:OPENAI_API_KEY="sua-chave"
+mvn spring-boot:run
+```
+
+Também é possível configurar `app.ai.openai.api-key`, `app.ai.openai.model` (padrão `gpt-4o-mini`) e `app.ai.openai.base-url` (padrão `https://api.openai.com/v1`) em `application.properties`. A aplicação envia o texto para `/chat/completions` e solicita uma resposta JSON com nome, CPF, endereço, cidade e data de emissão. O serviço não registra a chave nem o texto enviado.
+
+Sem chave, a extração local baseada em padrões continua sendo usada. Quando a chave está configurada, erros da API ou respostas incompatíveis são reportados como erro e não são ocultados pelo fallback local. As regras de negócio continuam sendo aplicadas em Java nos dois modos.

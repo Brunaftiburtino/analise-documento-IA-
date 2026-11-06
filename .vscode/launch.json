@@ -1,0 +1,26 @@
+{
+   
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Current File",
+            "request": "launch",
+            "mainClass": "${file}"
+        },
+        {
+            "type": "java",
+            "name": "ValidacaoDocumentosApplication",
+            "request": "launch",
+            "mainClass": "br.com.mentoria.validacaodocumentos.ValidacaoDocumentosApplication",
+            "projectName": "validacao-documentos"
+        },
+        {
+            "type": "java",
+            "name": "OpenCvPreprocessamentoServiceTest$CopiarImagemCommand",
+            "request": "launch",
+            "mainClass": "br.com.mentoria.validacaodocumentos.service.OpenCvPreprocessamentoServiceTest$CopiarImagemCommand",
+            "projectName": "validacao-documentos"
+        }
+    ]
+}

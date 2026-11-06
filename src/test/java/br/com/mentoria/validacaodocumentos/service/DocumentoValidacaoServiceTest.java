@@ -2,6 +2,7 @@ package br.com.mentoria.validacaodocumentos.service;
 
 import br.com.mentoria.validacaodocumentos.documento.DadosDocumento;
 import br.com.mentoria.validacaodocumentos.documento.RespostaValidacao;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
@@ -26,7 +27,13 @@ class DocumentoValidacaoServiceTest {
                 new ExtratorDadosService(),
                 new ValidacaoRegrasService(clock),
                 new TesseractOcrService("", "", "por"),
-                new OpenCvPreprocessamentoService(""));
+                new OpenCvPreprocessamentoService(""),
+                new InterpretadorIaService(
+                        org.springframework.web.client.RestClient.builder(),
+                        new ObjectMapper(),
+                        "",
+                        "gpt-4o-mini",
+                        "https://api.openai.com/v1"));
     }
 
     @Test
@@ -81,6 +88,7 @@ class DocumentoValidacaoServiceTest {
 
         assertEquals("Joao da Silva", resposta.dadosExtraidos().nome());
         assertTrue(resposta.etapas().get(1).descricao().contains("Fallback local"));
+        assertTrue(resposta.etapas().get(2).descricao().contains("Fallback local"));
     }
 
     @Test
@@ -89,7 +97,13 @@ class DocumentoValidacaoServiceTest {
                 new ExtratorDadosService(),
                 new ValidacaoRegrasService(Clock.systemUTC()),
                 new TesseractOcrService("tesseract", "", "por"),
-                new OpenCvPreprocessamentoService(""));
+                new OpenCvPreprocessamentoService(""),
+                new InterpretadorIaService(
+                        org.springframework.web.client.RestClient.builder(),
+                        new ObjectMapper(),
+                        "",
+                        "gpt-4o-mini",
+                        "https://api.openai.com/v1"));
         DadosDocumento documento = new DadosDocumento(
                 "imagem.png",
                 "image/png",

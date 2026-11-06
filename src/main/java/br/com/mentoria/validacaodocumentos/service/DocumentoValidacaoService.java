@@ -20,16 +20,19 @@ public class DocumentoValidacaoService {
     private final ValidacaoRegrasService validacaoRegrasService;
     private final TesseractOcrService tesseractOcrService;
     private final OpenCvPreprocessamentoService openCvPreprocessamentoService;
+    private final InterpretadorIaService interpretadorIaService;
 
     public DocumentoValidacaoService(
             ExtratorDadosService extratorDadosService,
             ValidacaoRegrasService validacaoRegrasService,
             TesseractOcrService tesseractOcrService,
-            OpenCvPreprocessamentoService openCvPreprocessamentoService) {
+            OpenCvPreprocessamentoService openCvPreprocessamentoService,
+            InterpretadorIaService interpretadorIaService) {
         this.extratorDadosService = extratorDadosService;
         this.validacaoRegrasService = validacaoRegrasService;
         this.tesseractOcrService = tesseractOcrService;
         this.openCvPreprocessamentoService = openCvPreprocessamentoService;
+        this.interpretadorIaService = interpretadorIaService;
     }
 
     public RespostaValidacao validar(DadosDocumento documento) {
@@ -67,7 +70,10 @@ public class DocumentoValidacaoService {
                             : "Envie conteudoDocumento ou configure app.ocr.command para processar imagens.");
         }
 
-        DadosExtraidos dadosExtraidos = extratorDadosService.extrair(textoDocumento);
+        boolean iaOpenAiExecutada = interpretadorIaService.isConfigurado();
+        DadosExtraidos dadosExtraidos = iaOpenAiExecutada
+                ? interpretadorIaService.interpretar(textoDocumento)
+                : extratorDadosService.extrair(textoDocumento);
         ResultadoValidacao resultado = validacaoRegrasService.validar(dadosExtraidos);
         List<EtapaProcessamento> etapas = new java.util.ArrayList<>();
         etapas.add(new EtapaProcessamento(1, "Documento", "Entrada do arquivo para o pipeline",
@@ -84,8 +90,10 @@ public class DocumentoValidacaoService {
                 ocrExecutado ? "Tesseract executado localmente" : "Fallback local: texto enviado diretamente no request",
                 textoDocumento.length() + " caracteres recebidos"));
         etapas.add(new EtapaProcessamento(ordem++, "IA",
-                "Fallback local: extração dos campos por padrões de texto",
-                "Extração estruturada concluída"));
+                iaOpenAiExecutada
+                        ? "Interpretação estruturada pela API OpenAI"
+                        : "Fallback local: extração dos campos por padrões de texto",
+                iaOpenAiExecutada ? "Resposta estruturada recebida" : "Extração estruturada concluída"));
         etapas.add(new EtapaProcessamento(ordem, "Regras de negócio",
                 "Validação dos campos e da data de emissão", resultado.status()));
         return new RespostaValidacao(documento.nomeArquivo(), List.copyOf(etapas), dadosExtraidos, resultado);
