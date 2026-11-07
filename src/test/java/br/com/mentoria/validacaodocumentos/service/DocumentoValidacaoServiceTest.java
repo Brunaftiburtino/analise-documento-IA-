@@ -40,13 +40,13 @@ class DocumentoValidacaoServiceTest {
     void extraiCamposEaprovaDocumentoDentroDoPrazo() {
         RespostaValidacao resposta = service.validar(documentoCom(
                 "Nome: Joao da Silva\n"
-                        + "CPF: 123.456.789-00\n"
+                        + "CPF: 529.982.247-25\n"
                         + "Endereco: Rua das Flores, 150\n"
                         + "Cidade: Guanambi - BA\n"
                         + "Data de emissao: 10/08/2026"));
 
         assertEquals("Joao da Silva", resposta.dadosExtraidos().nome());
-        assertEquals("123.456.789-00", resposta.dadosExtraidos().cpf());
+        assertEquals("529.982.247-25", resposta.dadosExtraidos().cpf());
         assertEquals("2026-08-10", resposta.dadosExtraidos().dataEmissao().toString());
         assertTrue(resposta.resultado().aprovado());
         assertEquals("APROVADO", resposta.resultado().status());
@@ -61,6 +61,45 @@ class DocumentoValidacaoServiceTest {
         assertFalse(resposta.resultado().aprovado());
         assertTrue(resposta.resultado().pendencias().contains("CPF nao encontrado"));
         assertTrue(resposta.resultado().pendencias().contains("Emissao superior a 90 dias"));
+    }
+
+    @Test
+    void rejeitaCpfComDigitosVerificadoresInvalidos() {
+        RespostaValidacao resposta = service.validar(documentoCom(
+                "Nome: Joao da Silva\n"
+                        + "CPF: 529.982.247-24\n"
+                        + "Endereco: Rua das Flores, 150\n"
+                        + "Cidade: Guanambi - BA\n"
+                        + "Data de emissao: 10/08/2026"));
+
+        assertFalse(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().pendencias().contains("CPF invalido"));
+    }
+
+    @Test
+    void rejeitaCpfComTodosOsDigitosIguais() {
+        RespostaValidacao resposta = service.validar(documentoCom(
+                "Nome: Joao da Silva\n"
+                        + "CPF: 111.111.111-11\n"
+                        + "Endereco: Rua das Flores, 150\n"
+                        + "Cidade: Guanambi - BA\n"
+                        + "Data de emissao: 10/08/2026"));
+
+        assertFalse(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().pendencias().contains("CPF invalido"));
+    }
+
+    @Test
+    void aceitaCpfValidoSemFormatacao() {
+        RespostaValidacao resposta = service.validar(documentoCom(
+                "Nome: Joao da Silva\n"
+                        + "CPF: 52998224725\n"
+                        + "Endereco: Rua das Flores, 150\n"
+                        + "Cidade: Guanambi - BA\n"
+                        + "Data de emissao: 10/08/2026"));
+
+        assertTrue(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().regrasAtendidas().contains("CPF valido"));
     }
 
     @Test

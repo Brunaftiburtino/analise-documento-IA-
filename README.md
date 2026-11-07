@@ -25,7 +25,7 @@ Exemplo de request:
 {
   "nomeArquivo": "comprovante-residencia.pdf",
   "mimeType": "application/pdf",
-  "conteudoDocumento": "COMPROVANTE DE RESIDENCIA\nNome: Joao da Silva\nCPF: 123.456.789-00\nEndereco: Rua das Flores, 150\nCidade: Guanambi - BA\nData de emissao: 04/11/2026",
+  "conteudoDocumento": "COMPROVANTE DE RESIDENCIA\nNome: Joao da Silva\nCPF: 529.982.247-25\nEndereco: Rua das Flores, 150\nCidade: Guanambi - BA\nData de emissao: 04/11/2026",
   "imagemBase64": null
 }
 ```
@@ -35,8 +35,8 @@ Envie `conteudoDocumento` para usar o fallback local ou envie uma imagem em `ima
 O retorno inclui os campos extraídos, as etapas do pipeline e o resultado das regras:
 
 - nome, CPF, endereço, cidade e data de emissão;
-- aprovação quando todos os campos são encontrados e a emissão ocorreu nos últimos 90 dias;
-- pendências para campos ausentes ou documentos antigos.
+- aprovação quando todos os campos são encontrados, o CPF tem dígitos verificadores válidos e a emissão ocorreu nos últimos 90 dias;
+- pendências para campos ausentes, CPF inválido ou documentos antigos.
 
 ## Pré-processamento com OpenCV
 

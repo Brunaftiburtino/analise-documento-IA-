@@ -24,8 +24,7 @@ public class ValidacaoRegrasService {
 
         validarCampo(dadosDocumento.nome(), "Nome identificado", "Nome nao encontrado",
                 regrasAtendidas, pendencias);
-        validarCampo(dadosDocumento.cpf(), "CPF encontrado", "CPF nao encontrado",
-                regrasAtendidas, pendencias);
+        validarCpf(dadosDocumento.cpf(), regrasAtendidas, pendencias);
         validarCampo(dadosDocumento.endereco(), "Endereco encontrado", "Endereco nao encontrado",
                 regrasAtendidas, pendencias);
         validarCampo(dadosDocumento.cidade(), "Cidade encontrada", "Cidade nao encontrada",
@@ -62,5 +61,45 @@ public class ValidacaoRegrasService {
         } else {
             regrasAtendidas.add(regraAtendida);
         }
+    }
+
+    private static void validarCpf(
+            String valor,
+            List<String> regrasAtendidas,
+            List<String> pendencias) {
+        if (valor == null || valor.isBlank()) {
+            pendencias.add("CPF nao encontrado");
+        } else if (cpfValido(valor)) {
+            regrasAtendidas.add("CPF valido");
+        } else {
+            pendencias.add("CPF invalido");
+        }
+    }
+
+    private static boolean cpfValido(String valor) {
+        String cpf = valor.trim();
+        if (cpf.matches("\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}")) {
+            cpf = cpf.replace(".", "").replace("-", "");
+        } else if (!cpf.matches("\\d{11}")) {
+            return false;
+        }
+
+        if (cpf.chars().distinct().count() == 1) {
+            return false;
+        }
+
+        int primeiroDigito = calcularDigito(cpf, 9, 10);
+        int segundoDigito = calcularDigito(cpf, 10, 11);
+        return primeiroDigito == cpf.charAt(9) - '0'
+                && segundoDigito == cpf.charAt(10) - '0';
+    }
+
+    private static int calcularDigito(String cpf, int quantidadeDigitos, int pesoInicial) {
+        int soma = 0;
+        for (int indice = 0; indice < quantidadeDigitos; indice++) {
+            soma += (cpf.charAt(indice) - '0') * (pesoInicial - indice);
+        }
+        int digito = (soma * 10) % 11;
+        return digito == 10 ? 0 : digito;
     }
 }

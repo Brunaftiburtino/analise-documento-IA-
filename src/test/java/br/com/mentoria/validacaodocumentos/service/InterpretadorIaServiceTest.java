@@ -59,7 +59,7 @@ class InterpretadorIaServiceTest {
                 {
                   "choices": [{
                     "message": {
-                      "content": "{\\"nome\\":\\"Joao da Silva\\",\\"cpf\\":\\"123.456.789-00\\",\\"endereco\\":\\"Rua das Flores, 150\\",\\"cidade\\":\\"Guanambi - BA\\",\\"dataEmissao\\":\\"2026-08-10\\"}"
+                      "content": "{\\"nome\\":\\"Joao da Silva\\",\\"cpf\\":\\"529.982.247-25\\",\\"endereco\\":\\"Rua das Flores, 150\\",\\"cidade\\":\\"Guanambi - BA\\",\\"dataEmissao\\":\\"2026-08-10\\"}"
                     }
                   }]
                 }
@@ -68,7 +68,7 @@ class InterpretadorIaServiceTest {
         DadosExtraidos dados = service("chave-de-teste").interpretar("texto do documento");
 
         assertEquals("Joao da Silva", dados.nome());
-        assertEquals("123.456.789-00", dados.cpf());
+        assertEquals("529.982.247-25", dados.cpf());
         assertEquals("Rua das Flores, 150", dados.endereco());
         assertEquals("Guanambi - BA", dados.cidade());
         assertEquals(LocalDate.of(2026, 8, 10), dados.dataEmissao());
