@@ -2,10 +2,12 @@ package br.com.mentoria.validacaodocumentos.service;
 
 import br.com.mentoria.validacaodocumentos.documento.DadosExtraidos;
 import br.com.mentoria.validacaodocumentos.documento.ResultadoValidacao;
+import br.com.mentoria.validacaodocumentos.documento.TipoDocumento;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,27 +21,21 @@ public class ValidacaoRegrasService {
     }
 
     public ResultadoValidacao validar(DadosExtraidos dadosDocumento) {
+        return validar(TipoDocumento.COMPROVANTE_RESIDENCIA, dadosDocumento);
+    }
+
+    public ResultadoValidacao validar(TipoDocumento tipoDocumento, DadosExtraidos dadosDocumento) {
         List<String> regrasAtendidas = new ArrayList<>();
         List<String> pendencias = new ArrayList<>();
 
         validarCampo(dadosDocumento.nome(), "Nome identificado", "Nome nao encontrado",
                 regrasAtendidas, pendencias);
         validarCpf(dadosDocumento.cpf(), regrasAtendidas, pendencias);
-        validarCampo(dadosDocumento.endereco(), "Endereco encontrado", "Endereco nao encontrado",
-                regrasAtendidas, pendencias);
-        validarCampo(dadosDocumento.cidade(), "Cidade encontrada", "Cidade nao encontrada",
-                regrasAtendidas, pendencias);
 
-        if (dadosDocumento.dataEmissao() == null) {
-            pendencias.add("Data de emissao nao encontrada");
-        } else {
-            regrasAtendidas.add("Data de emissao reconhecida");
-            LocalDate limite = LocalDate.now(clock).minusDays(90);
-            if (dadosDocumento.dataEmissao().isBefore(limite)) {
-                pendencias.add("Emissao superior a 90 dias");
-            } else {
-                regrasAtendidas.add("Emissao dentro de 90 dias");
-            }
+        switch (tipoDocumento) {
+            case COMPROVANTE_RESIDENCIA -> validarComprovanteResidencia(dadosDocumento, regrasAtendidas, pendencias);
+            case DOCUMENTO_IDENTIFICACAO -> validarDocumentoIdentificacao(dadosDocumento, regrasAtendidas, pendencias);
+            case COMPROVANTE_RENDA -> validarComprovanteRenda(dadosDocumento, regrasAtendidas, pendencias);
         }
 
         boolean aprovado = pendencias.isEmpty();
@@ -48,6 +44,93 @@ public class ValidacaoRegrasService {
                 aprovado ? "APROVADO" : "REPROVADO",
                 List.copyOf(regrasAtendidas),
                 List.copyOf(pendencias));
+    }
+
+    private void validarComprovanteResidencia(
+            DadosExtraidos dados,
+            List<String> regrasAtendidas,
+            List<String> pendencias) {
+        validarCampo(dados.endereco(), "Endereco encontrado", "Endereco nao encontrado",
+                regrasAtendidas, pendencias);
+        validarCep(dados.cep(), regrasAtendidas, pendencias);
+        validarDataEmissao(dados.dataEmissao(), regrasAtendidas, pendencias);
+    }
+
+    private void validarDocumentoIdentificacao(
+            DadosExtraidos dados,
+            List<String> regrasAtendidas,
+            List<String> pendencias) {
+        validarCampo(dados.numeroDocumento(), "Numero do documento identificado",
+                "Numero do documento nao encontrado", regrasAtendidas, pendencias);
+        if (dados.dataValidade() != null) {
+            if (dados.dataValidade().isBefore(LocalDate.now(clock))) {
+                pendencias.add("Documento de identificacao vencido");
+            } else {
+                regrasAtendidas.add("Documento de identificacao dentro da validade");
+            }
+        }
+    }
+
+    private void validarComprovanteRenda(
+            DadosExtraidos dados,
+            List<String> regrasAtendidas,
+            List<String> pendencias) {
+        validarRenda(dados.rendaMensal(), regrasAtendidas, pendencias);
+        validarDataEmissao(dados.dataEmissao(), regrasAtendidas, pendencias);
+    }
+
+    private void validarDataEmissao(
+            LocalDate dataEmissao,
+            List<String> regrasAtendidas,
+            List<String> pendencias) {
+        if (dataEmissao == null) {
+            pendencias.add("Data de emissao nao encontrada");
+            return;
+        }
+
+        regrasAtendidas.add("Data de emissao reconhecida");
+        LocalDate hoje = LocalDate.now(clock);
+        if (dataEmissao.isAfter(hoje)) {
+            pendencias.add("Data de emissao futura");
+        } else if (dataEmissao.isBefore(hoje.minusDays(90))) {
+            pendencias.add("Emissao superior a 90 dias");
+        } else {
+            regrasAtendidas.add("Emissao dentro de 90 dias");
+        }
+    }
+
+    private static void validarCep(
+            String cep,
+            List<String> regrasAtendidas,
+            List<String> pendencias) {
+        if (cep == null || !cep.matches("\\d{5}-?\\d{3}")) {
+            pendencias.add("CEP ausente ou invalido");
+        } else {
+            regrasAtendidas.add("CEP identificado");
+        }
+    }
+
+    private static void validarRenda(
+            String renda,
+            List<String> regrasAtendidas,
+            List<String> pendencias) {
+        if (renda == null || !renda.matches("(?:\\d+|\\d{1,3}(?:\\.\\d{3})+)(?:,\\d{1,2}|\\.\\d{1,2})?")) {
+            pendencias.add("Renda mensal ausente ou invalida");
+            return;
+        }
+
+        try {
+            String valor = renda.contains(",")
+                    ? renda.replace(".", "").replace(',', '.')
+                    : renda;
+            if (new BigDecimal(valor).signum() <= 0) {
+                pendencias.add("Renda mensal deve ser maior que zero");
+            } else {
+                regrasAtendidas.add("Renda mensal identificada");
+            }
+        } catch (NumberFormatException e) {
+            pendencias.add("Renda mensal ausente ou invalida");
+        }
     }
 
     private static void validarCampo(

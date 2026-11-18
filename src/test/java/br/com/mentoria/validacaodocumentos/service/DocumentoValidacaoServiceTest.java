@@ -2,6 +2,7 @@ package br.com.mentoria.validacaodocumentos.service;
 
 import br.com.mentoria.validacaodocumentos.documento.DadosDocumento;
 import br.com.mentoria.validacaodocumentos.documento.RespostaValidacao;
+import br.com.mentoria.validacaodocumentos.documento.TipoDocumento;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class DocumentoValidacaoServiceTest {
 
@@ -42,6 +48,7 @@ class DocumentoValidacaoServiceTest {
                 "Nome: Joao da Silva\n"
                         + "CPF: 529.982.247-25\n"
                         + "Endereco: Rua das Flores, 150\n"
+                        + "CEP: 46430-000\n"
                         + "Cidade: Guanambi - BA\n"
                         + "Data de emissao: 10/08/2026"));
 
@@ -64,11 +71,138 @@ class DocumentoValidacaoServiceTest {
     }
 
     @Test
+    void rejeitaDocumentoComDataDeEmissaoFutura() {
+        RespostaValidacao resposta = service.validar(documentoCom(
+                "Nome: Joao da Silva\n"
+                        + "CPF: 529.982.247-25\n"
+                        + "Endereco: Rua das Flores, 150\n"
+                        + "CEP: 46430-000\n"
+                        + "Cidade: Guanambi - BA\n"
+                        + "Data de emissao: 05/11/2026"));
+
+        assertFalse(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().pendencias().contains("Data de emissao futura"));
+    }
+
+    @Test
+    void aceitaDocumentoEmitidoExatamenteHaNoventaDias() {
+        RespostaValidacao resposta = service.validar(documentoCom(
+                "Nome: Joao da Silva\n"
+                        + "CPF: 529.982.247-25\n"
+                        + "Endereco: Rua das Flores, 150\n"
+                        + "CEP: 46430-000\n"
+                        + "Cidade: Guanambi - BA\n"
+                        + "Data de emissao: 06/08/2026"));
+
+        assertTrue(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().regrasAtendidas().contains("Emissao dentro de 90 dias"));
+    }
+
+    @Test
+    void validaCepObrigatorioNoComprovanteDeResidencia() {
+        RespostaValidacao resposta = service.validar(documentoCom(
+                "Nome: Joao da Silva\n"
+                        + "CPF: 529.982.247-25\n"
+                        + "Endereco: Rua das Flores, 150\n"
+                        + "Data de emissao: 10/08/2026"));
+
+        assertFalse(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().pendencias().contains("CEP ausente ou invalido"));
+    }
+
+    @Test
+    void aprovaDocumentoDeIdentificacaoComDadosMinimos() {
+        RespostaValidacao resposta = service.validar(new DadosDocumento(
+                "cnh.png",
+                "image/png",
+                "Nome: Joao da Silva\nCPF: 529.982.247-25\nCNH: 123456789",
+                null,
+                TipoDocumento.DOCUMENTO_IDENTIFICACAO));
+
+        assertTrue(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().regrasAtendidas().contains("Numero do documento identificado"));
+    }
+
+    @Test
+    void rejeitaDocumentoDeIdentificacaoVencido() {
+        RespostaValidacao resposta = service.validar(new DadosDocumento(
+                "cnh.png",
+                "image/png",
+                "Nome: Joao da Silva\nCPF: 529.982.247-25\nCNH: 123456789\nValidade: 01/01/2026",
+                null,
+                TipoDocumento.DOCUMENTO_IDENTIFICACAO));
+
+        assertFalse(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().pendencias().contains("Documento de identificacao vencido"));
+    }
+
+    @Test
+    void validaRendaPositivaEDataRecenteNoComprovanteDeRenda() {
+        RespostaValidacao resposta = service.validar(new DadosDocumento(
+                "holerite.png",
+                "image/png",
+                "Nome: Joao da Silva\nCPF: 529.982.247-25\nRenda mensal: R$ 2.500,00\n"
+                        + "Data de emissao: 10/08/2026",
+                null,
+                TipoDocumento.COMPROVANTE_RENDA));
+
+        assertTrue(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().regrasAtendidas().contains("Renda mensal identificada"));
+    }
+
+    @Test
+    void rejeitaRendaIgualAZero() {
+        RespostaValidacao resposta = service.validar(new DadosDocumento(
+                "holerite.png",
+                "image/png",
+                "Nome: Joao da Silva\nCPF: 529.982.247-25\nRenda mensal: 0,00\n"
+                        + "Data de emissao: 10/08/2026",
+                null,
+                TipoDocumento.COMPROVANTE_RENDA));
+
+        assertFalse(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().pendencias().contains("Renda mensal deve ser maior que zero"));
+    }
+
+    @Test
+    void processaImagemPeloOcrEAplicaRegrasDoTipoSelecionado() {
+        TesseractOcrService ocr = mock(TesseractOcrService.class);
+        when(ocr.isConfigurado()).thenReturn(true);
+        when(ocr.extrairTexto(any(byte[].class), eq("image/png"))).thenReturn(
+                "Nome: Joao da Silva\n"
+                        + "CPF: 529.982.247-25\n"
+                        + "Endereco: Rua das Flores, 150\n"
+                        + "CEP: 46430-000\n"
+                        + "Data de emissao: 10/08/2026");
+        OpenCvPreprocessamentoService openCv = mock(OpenCvPreprocessamentoService.class);
+        InterpretadorIaService ia = mock(InterpretadorIaService.class);
+        DocumentoValidacaoService serviceComOcr = new DocumentoValidacaoService(
+                new ExtratorDadosService(),
+                new ValidacaoRegrasService(Clock.fixed(
+                        Instant.parse("2026-11-04T12:00:00Z"),
+                        ZoneOffset.UTC)),
+                ocr,
+                openCv,
+                ia);
+
+        RespostaValidacao resposta = serviceComOcr.validarImagem(
+                TipoDocumento.COMPROVANTE_RESIDENCIA,
+                "comprovante.png",
+                "image/png",
+                new byte[]{1, 2, 3});
+
+        assertTrue(resposta.resultado().aprovado());
+        assertTrue(resposta.etapas().stream().anyMatch(etapa -> etapa.nome().equals("OCR")));
+        verify(ocr).extrairTexto(any(byte[].class), eq("image/png"));
+    }
+
+    @Test
     void rejeitaCpfComDigitosVerificadoresInvalidos() {
         RespostaValidacao resposta = service.validar(documentoCom(
                 "Nome: Joao da Silva\n"
                         + "CPF: 529.982.247-24\n"
                         + "Endereco: Rua das Flores, 150\n"
+                        + "CEP: 46430-000\n"
                         + "Cidade: Guanambi - BA\n"
                         + "Data de emissao: 10/08/2026"));
 
@@ -82,6 +216,7 @@ class DocumentoValidacaoServiceTest {
                 "Nome: Joao da Silva\n"
                         + "CPF: 111.111.111-11\n"
                         + "Endereco: Rua das Flores, 150\n"
+                        + "CEP: 46430-000\n"
                         + "Cidade: Guanambi - BA\n"
                         + "Data de emissao: 10/08/2026"));
 
@@ -95,6 +230,7 @@ class DocumentoValidacaoServiceTest {
                 "Nome: Joao da Silva\n"
                         + "CPF: 52998224725\n"
                         + "Endereco: Rua das Flores, 150\n"
+                        + "CEP: 46430-000\n"
                         + "Cidade: Guanambi - BA\n"
                         + "Data de emissao: 10/08/2026"));
 

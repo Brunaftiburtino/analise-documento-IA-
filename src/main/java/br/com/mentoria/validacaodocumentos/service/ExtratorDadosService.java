@@ -17,21 +17,35 @@ public class ExtratorDadosService {
     private static final Pattern CPF = campo("CPF");
     private static final Pattern ENDERECO = campo("Endere[cç]o");
     private static final Pattern CIDADE = campo("Cidade");
+    private static final Pattern CEP = campo("CEP");
+    private static final Pattern NUMERO_DOCUMENTO = Pattern.compile(
+            "(?im)^\\s*(?:N[uú]mero\\s+do\\s+documento|N[uú]mero\\s+do\\s+registro|Registro|RG|CNH)\\s*:\\s*(.+?)\\s*$");
+    private static final Pattern RENDA_MENSAL = Pattern.compile(
+            "(?im)^\\s*(?:Renda\\s+mensal|Sal[aá]rio)\\s*:\\s*(R\\$\\s*)?([\\d.,]+)\\s*$");
     private static final Pattern DATA_EMISSAO = Pattern.compile(
             "(?im)^\\s*Data\\s+de\\s+emiss[aã]o\\s*:\\s*(\\d{1,2}[/-]\\d{1,2}[/-]\\d{4}|\\d{4}-\\d{2}-\\d{2})\\s*$");
+    private static final Pattern DATA_VALIDADE = Pattern.compile(
+            "(?im)^\\s*(?:Data\\s+de\\s+validade|Validade)\\s*:\\s*(\\d{1,2}[/-]\\d{1,2}[/-]\\d{4}|\\d{4}-\\d{2}-\\d{2})\\s*$");
     private static final DateTimeFormatter DATA_BARRA = DateTimeFormatter.ofPattern("d/M/uuuu")
             .withResolverStyle(ResolverStyle.STRICT);
     private static final DateTimeFormatter DATA_HIFEN = DateTimeFormatter.ofPattern("d-M-uuuu")
             .withResolverStyle(ResolverStyle.STRICT);
 
     public DadosExtraidos extrair(String texto) {
+        if (texto == null) {
+            texto = "";
+        }
         String data = capturar(DATA_EMISSAO, texto);
         return new DadosExtraidos(
                 capturar(NOME, texto),
                 capturar(CPF, texto),
                 capturar(ENDERECO, texto),
                 capturar(CIDADE, texto),
-                converterData(data));
+                converterData(data),
+                capturar(CEP, texto),
+                capturar(NUMERO_DOCUMENTO, texto),
+                converterData(capturar(DATA_VALIDADE, texto)),
+                capturarRenda(texto));
     }
 
     private static Pattern campo(String rotulo) {
@@ -41,6 +55,11 @@ public class ExtratorDadosService {
     private static String capturar(Pattern pattern, String texto) {
         Matcher matcher = pattern.matcher(texto);
         return matcher.find() ? matcher.group(1).trim() : null;
+    }
+
+    private static String capturarRenda(String texto) {
+        Matcher matcher = RENDA_MENSAL.matcher(texto);
+        return matcher.find() ? matcher.group(2).trim() : null;
     }
 
     private static LocalDate converterData(String valor) {

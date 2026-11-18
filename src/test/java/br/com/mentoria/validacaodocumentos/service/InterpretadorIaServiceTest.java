@@ -1,6 +1,7 @@
 package br.com.mentoria.validacaodocumentos.service;
 
 import br.com.mentoria.validacaodocumentos.documento.DadosExtraidos;
+import br.com.mentoria.validacaodocumentos.documento.TipoDocumento;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
@@ -59,21 +60,24 @@ class InterpretadorIaServiceTest {
                 {
                   "choices": [{
                     "message": {
-                      "content": "{\\"nome\\":\\"Joao da Silva\\",\\"cpf\\":\\"529.982.247-25\\",\\"endereco\\":\\"Rua das Flores, 150\\",\\"cidade\\":\\"Guanambi - BA\\",\\"dataEmissao\\":\\"2026-08-10\\"}"
+                      "content": "{\\"nome\\":\\"Joao da Silva\\",\\"cpf\\":\\"529.982.247-25\\",\\"endereco\\":\\"Rua das Flores, 150\\",\\"cidade\\":\\"Guanambi - BA\\",\\"cep\\":\\"46430-000\\",\\"dataEmissao\\":\\"2026-08-10\\"}"
                     }
                   }]
                 }
                 """);
 
-        DadosExtraidos dados = service("chave-de-teste").interpretar("texto do documento");
+        DadosExtraidos dados = service("chave-de-teste")
+                .interpretar("texto do documento", TipoDocumento.COMPROVANTE_RESIDENCIA);
 
         assertEquals("Joao da Silva", dados.nome());
         assertEquals("529.982.247-25", dados.cpf());
         assertEquals("Rua das Flores, 150", dados.endereco());
         assertEquals("Guanambi - BA", dados.cidade());
+        assertEquals("46430-000", dados.cep());
         assertEquals(LocalDate.of(2026, 8, 10), dados.dataEmissao());
         assertEquals("Bearer chave-de-teste", authorization.get());
         assertTrue(requestBody.get().contains("\"type\":\"json_object\""));
+        assertTrue(requestBody.get().contains("COMPROVANTE_RESIDENCIA"));
         assertTrue(requestBody.get().contains("texto do documento"));
     }
 

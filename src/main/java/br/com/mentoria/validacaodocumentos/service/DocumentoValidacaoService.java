@@ -5,6 +5,7 @@ import br.com.mentoria.validacaodocumentos.documento.DadosExtraidos;
 import br.com.mentoria.validacaodocumentos.documento.EtapaProcessamento;
 import br.com.mentoria.validacaodocumentos.documento.RespostaValidacao;
 import br.com.mentoria.validacaodocumentos.documento.ResultadoValidacao;
+import br.com.mentoria.validacaodocumentos.documento.TipoDocumento;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -15,6 +16,8 @@ import java.util.List;
 
 @Service
 public class DocumentoValidacaoService {
+
+    private static final int MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
     private final ExtratorDadosService extratorDadosService;
     private final ValidacaoRegrasService validacaoRegrasService;
@@ -36,11 +39,8 @@ public class DocumentoValidacaoService {
     }
 
     public RespostaValidacao validar(DadosDocumento documento) {
-        String textoDocumento = documento.conteudoDocumento();
-        boolean ocrExecutado = false;
-        boolean openCvExecutado = false;
+        byte[] imagem = null;
         if (StringUtils.hasText(documento.imagemBase64()) && tesseractOcrService.isConfigurado()) {
-            byte[] imagem;
             try {
                 imagem = Base64.getDecoder().decode(documento.imagemBase64());
             } catch (IllegalArgumentException e) {
@@ -49,6 +49,35 @@ public class DocumentoValidacaoService {
                         "imagemBase64 não contém um valor Base64 válido.",
                         e);
             }
+        }
+        return validar(documento, imagem, false);
+    }
+
+    public RespostaValidacao validarImagem(
+            TipoDocumento tipoDocumento,
+            String nomeArquivo,
+            String mimeType,
+            byte[] imagem) {
+        if (imagem == null || imagem.length == 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O arquivo enviado está vazio.");
+        }
+        if (imagem.length > MAX_IMAGE_BYTES) {
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "O arquivo excede o limite de 10 MB.");
+        }
+        if (!tesseractOcrService.isConfigurado()) {
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Configure app.ocr.command para processar o upload de imagens.");
+        }
+        DadosDocumento documento = new DadosDocumento(nomeArquivo, mimeType, null, null, tipoDocumento);
+        return validar(documento, imagem, true);
+    }
+
+    private RespostaValidacao validar(DadosDocumento documento, byte[] imagem, boolean upload) {
+        String textoDocumento = documento.conteudoDocumento();
+        boolean ocrExecutado = false;
+        boolean openCvExecutado = false;
+        if (imagem != null) {
             if (imagem.length == 0) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
@@ -64,7 +93,7 @@ public class DocumentoValidacaoService {
 
         if (!StringUtils.hasText(textoDocumento)) {
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
+                    upload ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_REQUEST,
                     tesseractOcrService.isConfigurado()
                             ? "Envie conteudoDocumento ou uma imagem em imagemBase64."
                             : "Envie conteudoDocumento ou configure app.ocr.command para processar imagens.");
@@ -72,9 +101,9 @@ public class DocumentoValidacaoService {
 
         boolean iaOpenAiExecutada = interpretadorIaService.isConfigurado();
         DadosExtraidos dadosExtraidos = iaOpenAiExecutada
-                ? interpretadorIaService.interpretar(textoDocumento)
+                ? interpretadorIaService.interpretar(textoDocumento, documento.tipoDocumento())
                 : extratorDadosService.extrair(textoDocumento);
-        ResultadoValidacao resultado = validacaoRegrasService.validar(dadosExtraidos);
+        ResultadoValidacao resultado = validacaoRegrasService.validar(documento.tipoDocumento(), dadosExtraidos);
         List<EtapaProcessamento> etapas = new java.util.ArrayList<>();
         etapas.add(new EtapaProcessamento(1, "Documento", "Entrada do arquivo para o pipeline",
                 documento.nomeArquivo()));
@@ -95,7 +124,14 @@ public class DocumentoValidacaoService {
                         : "Fallback local: extração dos campos por padrões de texto",
                 iaOpenAiExecutada ? "Resposta estruturada recebida" : "Extração estruturada concluída"));
         etapas.add(new EtapaProcessamento(ordem, "Regras de negócio",
-                "Validação dos campos e da data de emissão", resultado.status()));
-        return new RespostaValidacao(documento.nomeArquivo(), List.copyOf(etapas), dadosExtraidos, resultado);
+                "Aplicação das regras específicas do tipo de documento", resultado.status()));
+        return new RespostaValidacao(
+                null,
+                documento.tipoDocumento(),
+                documento.nomeArquivo(),
+                null,
+                List.copyOf(etapas),
+                dadosExtraidos,
+                resultado);
     }
 }

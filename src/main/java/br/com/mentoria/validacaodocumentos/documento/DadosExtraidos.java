@@ -7,5 +7,18 @@ public record DadosExtraidos(
         String cpf,
         String endereco,
         String cidade,
-        LocalDate dataEmissao) {
+        LocalDate dataEmissao,
+        String cep,
+        String numeroDocumento,
+        LocalDate dataValidade,
+        String rendaMensal) {
+
+    public DadosExtraidos(
+            String nome,
+            String cpf,
+            String endereco,
+            String cidade,
+            LocalDate dataEmissao) {
+        this(nome, cpf, endereco, cidade, dataEmissao, null, null, null, null);
+    }
 }

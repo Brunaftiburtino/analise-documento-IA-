@@ -2,6 +2,41 @@
 
 API didática em Spring Boot para demonstrar um pipeline de validação. O serviço recebe texto ou imagem, pode pré-processar a imagem com OpenCV e usar Tesseract para OCR, interpreta os campos com OpenAI quando configurada (ou com regras locais como fallback) e aplica as regras de negócio.
 
+## Escopo do MVP
+
+- **Problema:** reduzir o tempo e o retrabalho da conferência manual de documentos usados em cadastros e análises financeiras.
+- **Usuário:** analistas de cadastro e equipes de backoffice de empresas.
+- **Documentos:** comprovante de residência, documento de identificação (RG/CNH) e comprovante de renda.
+- **Dados:** nome e CPF em todos; endereço e CEP para residência; número e validade (quando impressa) para identificação; renda mensal para comprovante de renda; data de emissão quando aplicável.
+- **Fluxo:** upload de imagem ou envio de texto → OCR → extração local ou IA → regras específicas do tipo → resultado persistido → consulta por identificador ou histórico.
+- **Armazenamento:** H2 local para demonstração. São guardados os dados extraídos e o resultado; a imagem original e o texto integral do documento não são armazenados.
+- **Limite do MVP:** o sistema verifica presença/formato dos campos, CPF, datas e valor de renda. Não verifica autenticidade do documento, titularidade da conta/endereço nem capacidade de pagamento. Uma falha técnica de OCR é reportada como erro, não como reprovação de negócio.
+
+### Fluxo da solução
+
+```mermaid
+flowchart LR
+    A[Documento recebido] --> B[Upload da imagem ou envio de texto]
+    B --> C{Imagem enviada?}
+    C -- Sim --> D[Pré-processamento OpenCV opcional]
+    D --> E[OCR Tesseract]
+    C -- Não --> F[Texto do documento]
+    E --> G[Extração local ou IA]
+    F --> G
+    G --> H[Regras específicas do documento]
+    H --> I{Aprovado?}
+    I -->|Sim| J[Persistir resultado no H2]
+    I -->|Não| J
+    J --> K[Consultar por ID ou histórico]
+```
+
+### Regras de aprovação
+
+- **Residência:** nome, CPF válido, endereço, CEP com oito dígitos e emissão há no máximo 90 dias, sem data futura.
+- **Identificação:** nome, CPF válido e número do documento. Se houver data de validade no texto, ela não pode estar vencida; não se presume uma data de vencimento para documentos sem validade impressa.
+- **Renda:** nome, CPF válido, renda mensal positiva e data de emissão há no máximo 90 dias, sem data futura.
+- **Rejeição:** campo obrigatório ausente/inválido ou regra específica não atendida. O resultado lista as pendências.
+
 ## Requisitos e execução
 
 - Java 25+
@@ -10,6 +45,8 @@ API didática em Spring Boot para demonstrar um pipeline de validação. O servi
 ```powershell
 mvn spring-boot:run
 ```
+
+Depois, abra `http://localhost:8080` para usar a interface web da demonstração. Ela permite escolher o tipo de documento, enviar imagem ou texto, visualizar a decisão e os dados extraídos e consultar o histórico salvo. O modo de imagem depende do Tesseract; o modo de texto funciona sem OCR.
 
 ## Endpoints
 
@@ -25,18 +62,40 @@ Exemplo de request:
 {
   "nomeArquivo": "comprovante-residencia.pdf",
   "mimeType": "application/pdf",
-  "conteudoDocumento": "COMPROVANTE DE RESIDENCIA\nNome: Joao da Silva\nCPF: 529.982.247-25\nEndereco: Rua das Flores, 150\nCidade: Guanambi - BA\nData de emissao: 04/11/2026",
-  "imagemBase64": null
+  "conteudoDocumento": "COMPROVANTE DE RESIDENCIA\nNome: Joao da Silva\nCPF: 529.982.247-25\nEndereco: Rua das Flores, 150\nCEP: 46430-000\nCidade: Guanambi - BA\nData de emissao: 04/11/2026",
+  "imagemBase64": null,
+  "tipoDocumento": "COMPROVANTE_RESIDENCIA"
 }
 ```
 
-Envie `conteudoDocumento` para usar o fallback local ou envie uma imagem em `imagemBase64` após configurar o Tesseract. `mimeType` deve corresponder ao formato da imagem.
+`tipoDocumento` aceita `COMPROVANTE_RESIDENCIA`, `DOCUMENTO_IDENTIFICACAO` ou `COMPROVANTE_RENDA`. Se omitido em requests antigos, o sistema usa `COMPROVANTE_RESIDENCIA`.
 
-O retorno inclui os campos extraídos, as etapas do pipeline e o resultado das regras:
+Envie `conteudoDocumento` para usar a extração local ou envie uma imagem em `imagemBase64` após configurar o Tesseract. `mimeType` deve corresponder ao formato da imagem.
 
-- nome, CPF, endereço, cidade e data de emissão;
-- aprovação quando todos os campos são encontrados, o CPF tem dígitos verificadores válidos e a emissão ocorreu nos últimos 90 dias;
-- pendências para campos ausentes, CPF inválido ou documentos antigos.
+### Upload de imagem
+
+Com o Tesseract configurado, envie uma imagem multipart (limite de 10 MB):
+
+```powershell
+curl.exe -F "tipoDocumento=COMPROVANTE_RESIDENCIA" `
+  -F "arquivo=@C:\documentos\comprovante.png;type=image/png" `
+  http://localhost:8080/api/documentos/upload
+```
+
+O upload aceita PNG, JPEG, TIFF ou BMP. PDFs não são aceitos neste MVP. O endpoint retorna `201 Created` com o resultado e seu identificador.
+
+### Consultar resultados
+
+- `GET /api/documentos/{id}` consulta uma validação pelo identificador retornado.
+- `GET /api/documentos/historico` lista as 100 validações mais recentes.
+
+Os resultados ficam no banco H2 em arquivo na pasta `data/`, preservados entre reinicializações. Para testes automatizados, o projeto usa um banco H2 em memória.
+
+O retorno inclui o identificador, o tipo, os campos extraídos, as etapas do pipeline, data da validação e resultado das regras:
+
+- nome, CPF, endereço, cidade, CEP, número do documento, data de validade, renda mensal e data de emissão;
+- aprovação de acordo com as regras do tipo selecionado;
+- pendências para campos ausentes, CPF inválido, CEP inválido, renda inválida, datas futuras, vencidas ou com mais de 90 dias.
 
 ## Pré-processamento com OpenCV
 
