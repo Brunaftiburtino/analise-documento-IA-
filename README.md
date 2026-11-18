@@ -152,19 +152,38 @@ O comando é iniciado sem shell. Se o caminho do executável ou de algum argumen
 
 ## OCR com Tesseract
 
-Para processar uma imagem enviada em `imagemBase64`, configure o executável do Tesseract. No PowerShell:
+O projeto usa o idioma português (`por`) por padrão. No Windows, instale o Tesseract e o modelo de português:
 
 ```powershell
-$env:APP_OCR_COMMAND="tesseract"
+winget install --id UB-Mannheim.TesseractOCR --exact
+$dataPath = Join-Path $env:LOCALAPPDATA "Tesseract\tessdata"
+New-Item -ItemType Directory -Path $dataPath -Force
+Invoke-WebRequest `
+  -Uri "https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/por.traineddata" `
+  -OutFile (Join-Path $dataPath "por.traineddata")
+```
+
+Configure os caminhos para o usuário atual. O aplicativo lê `APP_OCR_COMMAND` como `app.ocr.command` e `APP_OCR_TESSDATA_PATH` como `app.ocr.tessdata-path`:
+
+```powershell
+$tesseractPath = "C:\Program Files\Tesseract-OCR\tesseract.exe"
+$dataPath = Join-Path $env:LOCALAPPDATA "Tesseract\tessdata"
+[Environment]::SetEnvironmentVariable("APP_OCR_COMMAND", $tesseractPath, "User")
+[Environment]::SetEnvironmentVariable("APP_OCR_TESSDATA_PATH", $dataPath, "User")
+```
+
+Feche e reabra o VS Code para que ele e os terminais recebam as variáveis. Para iniciar a aplicação imediatamente no terminal atual, defina-as também nessa sessão:
+
+```powershell
+$env:APP_OCR_COMMAND = "C:\Program Files\Tesseract-OCR\tesseract.exe"
+$env:APP_OCR_TESSDATA_PATH = Join-Path $env:LOCALAPPDATA "Tesseract\tessdata"
 mvn spring-boot:run
 ```
 
-Opcionalmente, configure `app.ocr.language` (padrão `por`) e `app.ocr.tessdata-path` caso os dados de idioma não estejam no caminho padrão. Por exemplo, essas propriedades também podem ser definidas em `src/main/resources/application.properties`:
+Verifique se o Tesseract encontra o modelo:
 
-```properties
-app.ocr.command=tesseract
-app.ocr.language=por
-app.ocr.tessdata-path=C:/tesseract/tessdata
+```powershell
+& $env:APP_OCR_COMMAND --tessdata-dir $env:APP_OCR_TESSDATA_PATH --list-langs
 ```
 
 O OCR aceita imagens PNG, JPEG, TIFF e BMP. Quando configurado, o pré-processamento OpenCV ocorre antes do Tesseract. Ambos são executados localmente, sem passar argumentos por um shell.
