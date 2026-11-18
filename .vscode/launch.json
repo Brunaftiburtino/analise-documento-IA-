@@ -13,7 +13,11 @@
             "name": "ValidacaoDocumentosApplication",
             "request": "launch",
             "mainClass": "br.com.mentoria.validacaodocumentos.ValidacaoDocumentosApplication",
-            "projectName": "validacao-documentos"
+            "projectName": "validacao-documentos",
+            "env": {
+                "APP_OCR_COMMAND": "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
+                "APP_OCR_TESSDATA_PATH": "${env:LOCALAPPDATA}\\Tesseract\\tessdata"
+            }
         },
         {
             "type": "java",

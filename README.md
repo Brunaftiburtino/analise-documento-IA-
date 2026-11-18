@@ -172,7 +172,7 @@ $dataPath = Join-Path $env:LOCALAPPDATA "Tesseract\tessdata"
 [Environment]::SetEnvironmentVariable("APP_OCR_TESSDATA_PATH", $dataPath, "User")
 ```
 
-Feche e reabra o VS Code para que ele e os terminais recebam as variáveis. Para iniciar a aplicação imediatamente no terminal atual, defina-as também nessa sessão:
+O perfil `ValidacaoDocumentosApplication` do VS Code já informa esses caminhos durante a execução. Se o Tesseract estiver instalado em outro local, ajuste `APP_OCR_COMMAND` em `.vscode/launch.json`. Para iniciar pelo terminal, defina as variáveis também nessa sessão:
 
 ```powershell
 $env:APP_OCR_COMMAND = "C:\Program Files\Tesseract-OCR\tesseract.exe"
