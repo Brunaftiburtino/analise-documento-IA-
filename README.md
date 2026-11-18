@@ -37,6 +37,36 @@ flowchart LR
 - **Renda:** nome, CPF válido, renda mensal positiva e data de emissão há no máximo 90 dias, sem data futura.
 - **Rejeição:** campo obrigatório ausente/inválido ou regra específica não atendida. O resultado lista as pendências.
 
+## Como demonstrar
+
+1. Inicie a aplicação com `mvn spring-boot:run` e abra `http://localhost:8080`.
+2. Selecione **Comprovante de residência** e clique em **Exemplo**. O formulário recebe um texto de demonstração com os campos necessários.
+3. Clique em **Validar documento**. Mostre o status aprovado, os dados extraídos, as regras atendidas e o protocolo.
+4. Para demonstrar uma reprovação, remova a linha do CEP ou altere o CPF para um valor inválido e valide novamente. A interface deve mostrar a pendência.
+5. Selecione a segunda validação no histórico para mostrar a consulta de um resultado persistido.
+6. Para demonstrar outro tipo, selecione **Documento de identificação** e use um texto com `Nome`, `CPF` e `RG` ou `CNH`. Para renda, use também `Renda mensal: R$ 2.500,00` e uma `Data de emissao` recente.
+
+O modo de texto não depende de serviços externos. Para demonstrar o caminho de imagem, configure o Tesseract e envie uma imagem legível com campos compatíveis com o tipo escolhido. A qualidade do OCR depende da imagem, do idioma e dos dados instalados no ambiente.
+
+## Decisões técnicas e aprendizados
+
+- **Uma aplicação para API e interface:** a página estática é servida pelo Spring Boot junto com a API. Isso deixa a demonstração simples de executar e evita manter um segundo servidor ou processo de build do front-end.
+- **Regras determinísticas no servidor:** a IA e o OCR ajudam a interpretar o conteúdo, mas a decisão é calculada em Java. Assim, os critérios de aprovação podem ser testados e não dependem de a IA decidir se um documento está aprovado.
+- **Extração flexível para documentos diferentes:** cada tipo possui campos e regras próprias. Um campo opcional, como validade impressa em alguns documentos, não deve ser inventado quando não aparece no texto.
+- **Falha técnica não é reprovação:** um erro ao chamar OCR ou IA é diferente de um documento que não atende às regras. A API reporta falhas de processamento como erro para não confundir a decisão de negócio.
+- **Minimização de dados:** o histórico armazena campos extraídos e resultado, não a imagem nem o texto integral. Mesmo assim, nome e CPF são dados pessoais; o banco local de demonstração deve ser protegido e não receber documentos reais sem definir controles de acesso, retenção e segurança apropriados.
+- **Persistência adequada ao protótipo:** H2 em arquivo facilita executar e demonstrar o MVP. Não substitui a configuração, operação, controle de acesso e cópias de segurança de um banco de produção.
+- **Testes automatizados tornam as regras verificáveis:** casos de aprovação, rejeição, datas, extração, endpoints, upload e consulta ajudam a detectar regressões sem depender de uma demonstração manual.
+
+## Próximos passos para evoluir além do MVP
+
+1. Validar as regras com analistas e exemplos autorizados de cada documento, incluindo variações de layout, campos ausentes e imagens de diferentes qualidades.
+2. Melhorar a extração de CEP, valores monetários e números de RG/CNH com formatos reais; medir a precisão do OCR antes de usar os resultados em processos operacionais.
+3. Avaliar suporte a PDF, com extração segura de texto e/ou conversão de páginas em imagens para OCR.
+4. Adicionar autenticação, autorização, trilha de auditoria, política de retenção e proteção dos dados em repouso antes de aceitar documentos reais.
+5. Planejar a migração de H2 para um banco gerenciado e incluir backups, monitoramento e tratamento de falhas operacionais.
+6. Avaliar detecção de adulteração, validação de autenticidade e revisão humana. Esses recursos exigem fontes e critérios próprios; não são cobertos pelas regras atuais do MVP.
+
 ## Requisitos e execução
 
 - Java 25+
