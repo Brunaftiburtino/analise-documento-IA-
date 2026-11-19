@@ -94,15 +94,23 @@ public class DocumentoValidacaoService {
         if (!StringUtils.hasText(textoDocumento)) {
             throw new ResponseStatusException(
                     upload ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_REQUEST,
-                    tesseractOcrService.isConfigurado()
-                            ? "Envie conteudoDocumento ou uma imagem em imagemBase64."
-                            : "Envie conteudoDocumento ou configure app.ocr.command para processar imagens.");
+                    upload && tesseractOcrService.isConfigurado()
+                            ? "O OCR não reconheceu texto nesta imagem. Use uma imagem nítida, na orientação correta e com tamanho legível."
+                            : tesseractOcrService.isConfigurado()
+                                    ? "Envie conteudoDocumento ou uma imagem em imagemBase64."
+                                    : "Envie conteudoDocumento ou configure app.ocr.command para processar imagens.");
         }
 
         boolean iaOpenAiExecutada = interpretadorIaService.isConfigurado();
         DadosExtraidos dadosExtraidos = iaOpenAiExecutada
                 ? interpretadorIaService.interpretar(textoDocumento, documento.tipoDocumento())
                 : extratorDadosService.extrair(textoDocumento);
+        if (ocrExecutado && nenhumCampoExtraido(dadosExtraidos)) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "A imagem foi processada, mas nenhum campo foi reconhecido. Verifique o tipo de documento "
+                            + "ou configure app.ai.openai.api-key para interpretar outros formatos.");
+        }
         ResultadoValidacao resultado = validacaoRegrasService.validar(documento.tipoDocumento(), dadosExtraidos);
         List<EtapaProcessamento> etapas = new java.util.ArrayList<>();
         etapas.add(new EtapaProcessamento(1, "Documento", "Entrada do arquivo para o pipeline",
@@ -133,5 +141,17 @@ public class DocumentoValidacaoService {
                 List.copyOf(etapas),
                 dadosExtraidos,
                 resultado);
+    }
+
+    private static boolean nenhumCampoExtraido(DadosExtraidos dados) {
+        return !StringUtils.hasText(dados.nome())
+                && !StringUtils.hasText(dados.cpf())
+                && !StringUtils.hasText(dados.endereco())
+                && !StringUtils.hasText(dados.cidade())
+                && !StringUtils.hasText(dados.cep())
+                && !StringUtils.hasText(dados.numeroDocumento())
+                && dados.dataValidade() == null
+                && !StringUtils.hasText(dados.rendaMensal())
+                && dados.dataEmissao() == null;
     }
 }

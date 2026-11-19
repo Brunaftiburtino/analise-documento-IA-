@@ -23,14 +23,22 @@ public class TesseractOcrService {
     private final String command;
     private final String tessdataPath;
     private final String language;
+    private final int pageSegmentationMode;
 
     public TesseractOcrService(
             @Value("${app.ocr.command:}") String command,
             @Value("${app.ocr.tessdata-path:}") String tessdataPath,
-            @Value("${app.ocr.language:por}") String language) {
+            @Value("${app.ocr.language:por}") String language,
+            @Value("${app.ocr.page-segmentation-mode:11}") int pageSegmentationMode) {
+        if (pageSegmentationMode < 0 || pageSegmentationMode > 13) {
+            throw new IllegalArgumentException("app.ocr.page-segmentation-mode deve estar entre 0 e 13.");
+        }
         this.command = command;
-        this.tessdataPath = tessdataPath;
         this.language = language;
+        this.pageSegmentationMode = pageSegmentationMode;
+        this.tessdataPath = StringUtils.hasText(tessdataPath)
+                ? tessdataPath
+                : detectarTessdataWindows();
     }
 
     public boolean isConfigurado() {
@@ -50,7 +58,11 @@ public class TesseractOcrService {
                     arquivoImagem.toString(),
                     "stdout",
                     "-l",
-                    language));
+                    language,
+                    "--psm",
+                    Integer.toString(pageSegmentationMode),
+                    "-c",
+                    "preserve_interword_spaces=1"));
             if (StringUtils.hasText(tessdataPath)) {
                 argumentos.add("--tessdata-dir");
                 argumentos.add(tessdataPath);
@@ -119,6 +131,18 @@ public class TesseractOcrService {
                     HttpStatus.UNSUPPORTED_MEDIA_TYPE,
                     "O OCR aceita imagens PNG, JPEG, TIFF ou BMP.");
         };
+    }
+
+    private static String detectarTessdataWindows() {
+        if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) {
+            return "";
+        }
+        String localAppData = System.getenv("LOCALAPPDATA");
+        if (!StringUtils.hasText(localAppData)) {
+            return "";
+        }
+        Path caminho = Path.of(localAppData, "Tesseract", "tessdata");
+        return Files.isDirectory(caminho) ? caminho.toString() : "";
     }
 
     private static final class ArquivosTemporarios implements AutoCloseable {

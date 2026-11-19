@@ -81,21 +81,23 @@ public class DocumentoController {
             throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "O arquivo excede o limite de 10 MB.");
         }
 
-        String mimeType = arquivo.getContentType();
-        if (mimeType == null
-                || !TIPOS_IMAGEM_SUPORTADOS.contains(mimeType.split(";", 2)[0].trim().toLowerCase(Locale.ROOT))) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNSUPPORTED_MEDIA_TYPE,
-                    "O upload aceita imagens PNG, JPEG, TIFF ou BMP.");
-        }
-
         try {
+            byte[] imagem = arquivo.getBytes();
+            String mimeType = normalizarTipoImagem(
+                    arquivo.getContentType(),
+                    arquivo.getOriginalFilename(),
+                    imagem);
+            if (!TIPOS_IMAGEM_SUPORTADOS.contains(mimeType)) {
+                throw new ResponseStatusException(
+                        HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                        "O upload aceita imagens PNG, JPEG, TIFF ou BMP.");
+            }
             String nomeArquivo = nomeSeguro(arquivo.getOriginalFilename());
             RespostaValidacao resposta = documentoValidacaoService.validarImagem(
                     tipoDocumento,
                     nomeArquivo,
                     mimeType,
-                    arquivo.getBytes());
+                    imagem);
             return historicoValidacaoService.salvar(resposta);
         } catch (IOException e) {
             throw new ResponseStatusException(
@@ -119,5 +121,43 @@ public class DocumentoController {
         String nome = StringUtils.hasText(nomeOriginal) ? nomeOriginal.replace('\\', '/') : "documento";
         String nomeArquivo = StringUtils.getFilename(StringUtils.cleanPath(nome));
         return StringUtils.hasText(nomeArquivo) ? nomeArquivo : "documento";
+    }
+
+    private static String normalizarTipoImagem(String mimeType, String nomeOriginal, byte[] imagem) {
+        String tipoInformado = mimeType == null
+                ? ""
+                : mimeType.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
+        if (TIPOS_IMAGEM_SUPORTADOS.contains(tipoInformado)) {
+            return tipoInformado;
+        }
+
+        if (imagem.length >= 8
+                && imagem[0] == (byte) 0x89
+                && imagem[1] == 'P'
+                && imagem[2] == 'N'
+                && imagem[3] == 'G') {
+            return "image/png";
+        }
+        if (imagem.length >= 3
+                && (imagem[0] & 0xff) == 0xff
+                && (imagem[1] & 0xff) == 0xd8
+                && (imagem[2] & 0xff) == 0xff) {
+            return "image/jpeg";
+        }
+        if (imagem.length >= 4
+                && ((imagem[0] == 'I' && imagem[1] == 'I' && imagem[2] == 42 && imagem[3] == 0)
+                || (imagem[0] == 'M' && imagem[1] == 'M' && imagem[2] == 0 && imagem[3] == 42))) {
+            return "image/tiff";
+        }
+        if (imagem.length >= 2 && imagem[0] == 'B' && imagem[1] == 'M') {
+            return "image/bmp";
+        }
+
+        String nome = nomeOriginal == null ? "" : nomeOriginal.toLowerCase(Locale.ROOT);
+        if (nome.endsWith(".png")) return "image/png";
+        if (nome.endsWith(".jpg") || nome.endsWith(".jpeg")) return "image/jpeg";
+        if (nome.endsWith(".tif") || nome.endsWith(".tiff")) return "image/tiff";
+        if (nome.endsWith(".bmp")) return "image/bmp";
+        return tipoInformado;
     }
 }

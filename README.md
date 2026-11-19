@@ -142,8 +142,12 @@ import cv2
 import sys
 
 imagem = cv2.imread(sys.argv[1])
+if imagem is None:
+    raise RuntimeError("Não foi possível abrir a imagem de entrada")
 cinza = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
-tratada = cv2.threshold(cinza, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+ampliada = cv2.resize(cinza, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+tratada = cv2.adaptiveThreshold(
+    ampliada, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 11)
 if not cv2.imwrite(sys.argv[2], tratada):
     raise RuntimeError("Não foi possível salvar a imagem pré-processada")
 ```
@@ -172,6 +176,8 @@ $dataPath = Join-Path $env:LOCALAPPDATA "Tesseract\tessdata"
 [Environment]::SetEnvironmentVariable("APP_OCR_TESSDATA_PATH", $dataPath, "User")
 ```
 
+No Windows, se `APP_OCR_TESSDATA_PATH` não estiver definido, o aplicativo procura o modelo em `%LOCALAPPDATA%\Tesseract\tessdata`. Para instalações em outro diretório, configure a variável explicitamente.
+
 O perfil `ValidacaoDocumentosApplication` do VS Code já informa esses caminhos durante a execução. Se o Tesseract estiver instalado em outro local, ajuste `APP_OCR_COMMAND` em `.vscode/launch.json`. Para iniciar pelo terminal, defina as variáveis também nessa sessão:
 
 ```powershell
@@ -188,6 +194,8 @@ Verifique se o Tesseract encontra o modelo:
 
 O OCR aceita imagens PNG, JPEG, TIFF e BMP. Quando configurado, o pré-processamento OpenCV ocorre antes do Tesseract. Ambos são executados localmente, sem passar argumentos por um shell.
 
+O Tesseract usa o modo de segmentação `11` por padrão, adequado a textos dispersos em documentos. Para testar outro modo sem alterar o código, configure `APP_OCR_PSM` (por exemplo, `6` para um bloco de texto ou `4` para colunas). O melhor modo depende do layout; compare a saída OCR localmente antes de escolher.
+
 Se o Tesseract não estiver configurado e o request contiver `conteudoDocumento`, esse texto continua sendo usado como fallback. Sem texto e sem OCR configurado, a API retorna `400 Bad Request`.
 
 ## Interpretação com OpenAI
@@ -201,4 +209,8 @@ mvn spring-boot:run
 
 Também é possível configurar `app.ai.openai.api-key`, `app.ai.openai.model` (padrão `gpt-4o-mini`) e `app.ai.openai.base-url` (padrão `https://api.openai.com/v1`) em `application.properties`. A aplicação envia o texto para `/chat/completions` e solicita uma resposta JSON com nome, CPF, endereço, cidade e data de emissão. O serviço não registra a chave nem o texto enviado.
 
+Por padrão, nenhuma chave é solicitada nem configurada: a aplicação usa OCR e extração locais e não chama a API paga. Só configure `OPENAI_API_KEY` se quiser ativar explicitamente a interpretação externa; nesse caso, o texto OCR, que pode conter dados pessoais, será enviado à OpenAI.
+
 Sem chave, a extração local baseada em padrões continua sendo usada. Quando a chave está configurada, erros da API ou respostas incompatíveis são reportados como erro e não são ocultados pelo fallback local. As regras de negócio continuam sendo aplicadas em Java nos dois modos.
+
+O fallback local reconhece campos rotulados, incluindo variações comuns como `Nome do cliente`, `CPF/CNPJ`, `Endereço da unidade consumidora` e `Emissão`. Ele não interpreta layouts arbitrários. Se o OCR encontrar texto, mas nenhum campo puder ser extraído da imagem, a API retorna `422` com uma mensagem de extração, em vez de reprovar o documento como se todos os dados estivessem ausentes. Para outros layouts, configure `OPENAI_API_KEY` para habilitar a interpretação semântica do texto reconhecido.

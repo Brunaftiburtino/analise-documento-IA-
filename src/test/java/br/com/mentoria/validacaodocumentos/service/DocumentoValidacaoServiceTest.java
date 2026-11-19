@@ -32,7 +32,7 @@ class DocumentoValidacaoServiceTest {
         service = new DocumentoValidacaoService(
                 new ExtratorDadosService(),
                 new ValidacaoRegrasService(clock),
-                new TesseractOcrService("", "", "por"),
+                new TesseractOcrService("", "", "por", 11),
                 new OpenCvPreprocessamentoService(""),
                 new InterpretadorIaService(
                         org.springframework.web.client.RestClient.builder(),
@@ -169,11 +169,11 @@ class DocumentoValidacaoServiceTest {
         TesseractOcrService ocr = mock(TesseractOcrService.class);
         when(ocr.isConfigurado()).thenReturn(true);
         when(ocr.extrairTexto(any(byte[].class), eq("image/png"))).thenReturn(
-                "Nome: Joao da Silva\n"
-                        + "CPF: 529.982.247-25\n"
-                        + "Endereco: Rua das Flores, 150\n"
-                        + "CEP: 46430-000\n"
-                        + "Data de emissao: 10/08/2026");
+                "NOME DO CLIENTE Joao da Silva\n"
+                        + "CPF/CNPJ 529.982.247-25\n"
+                        + "ENDERECO DA UNIDADE CONSUMIDORA Rua das Flores, 150\n"
+                        + "CEP 46430-000\n"
+                        + "EMISSAO 01/11/2026");
         OpenCvPreprocessamentoService openCv = mock(OpenCvPreprocessamentoService.class);
         InterpretadorIaService ia = mock(InterpretadorIaService.class);
         DocumentoValidacaoService serviceComOcr = new DocumentoValidacaoService(
@@ -192,8 +192,37 @@ class DocumentoValidacaoServiceTest {
                 new byte[]{1, 2, 3});
 
         assertTrue(resposta.resultado().aprovado());
+        assertEquals("Joao da Silva", resposta.dadosExtraidos().nome());
+        assertEquals("529.982.247-25", resposta.dadosExtraidos().cpf());
+        assertEquals("Rua das Flores, 150", resposta.dadosExtraidos().endereco());
+        assertEquals("46430-000", resposta.dadosExtraidos().cep());
+        assertEquals("2026-11-01", resposta.dadosExtraidos().dataEmissao().toString());
         assertTrue(resposta.etapas().stream().anyMatch(etapa -> etapa.nome().equals("OCR")));
         verify(ocr).extrairTexto(any(byte[].class), eq("image/png"));
+    }
+
+    @Test
+    void naoReprovaImagemQuandoExtracaoNaoReconheceNenhumCampo() {
+        TesseractOcrService ocr = mock(TesseractOcrService.class);
+        when(ocr.isConfigurado()).thenReturn(true);
+        when(ocr.extrairTexto(any(byte[].class), eq("image/png"))).thenReturn("texto legivel sem campos identificados");
+        DocumentoValidacaoService serviceComOcr = new DocumentoValidacaoService(
+                new ExtratorDadosService(),
+                new ValidacaoRegrasService(Clock.systemUTC()),
+                ocr,
+                mock(OpenCvPreprocessamentoService.class),
+                mock(InterpretadorIaService.class));
+
+        ResponseStatusException erro = assertThrows(
+                ResponseStatusException.class,
+                () -> serviceComOcr.validarImagem(
+                        TipoDocumento.COMPROVANTE_RESIDENCIA,
+                        "comprovante.png",
+                        "image/png",
+                        new byte[]{1, 2, 3}));
+
+        assertEquals(422, erro.getStatusCode().value());
+        assertTrue(erro.getReason().contains("nenhum campo foi reconhecido"));
     }
 
     @Test
@@ -271,7 +300,7 @@ class DocumentoValidacaoServiceTest {
         DocumentoValidacaoService serviceComOcr = new DocumentoValidacaoService(
                 new ExtratorDadosService(),
                 new ValidacaoRegrasService(Clock.systemUTC()),
-                new TesseractOcrService("tesseract", "", "por"),
+                new TesseractOcrService("tesseract", "", "por", 11),
                 new OpenCvPreprocessamentoService(""),
                 new InterpretadorIaService(
                         org.springframework.web.client.RestClient.builder(),
