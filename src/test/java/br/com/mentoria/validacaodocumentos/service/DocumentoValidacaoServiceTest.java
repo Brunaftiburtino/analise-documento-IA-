@@ -111,29 +111,122 @@ class DocumentoValidacaoServiceTest {
     }
 
     @Test
-    void aprovaDocumentoDeIdentificacaoComDadosMinimos() {
+    void calculaDezAnosDeValidadeQuandoDocumentoNaoInformaVencimento() {
         RespostaValidacao resposta = service.validar(new DadosDocumento(
                 "cnh.png",
                 "image/png",
-                "Nome: Joao da Silva\nCPF: 529.982.247-25\nCNH: 123456789",
+                "Nome: Joao da Silva\nCPF: 529.982.247-25\nData de emissao: 04/11/2016",
                 null,
                 TipoDocumento.DOCUMENTO_IDENTIFICACAO));
 
         assertTrue(resposta.resultado().aprovado());
-        assertTrue(resposta.resultado().regrasAtendidas().contains("Numero do documento identificado"));
+        assertTrue(resposta.resultado().regrasAtendidas().contains("Nome identificado"));
+        assertTrue(resposta.resultado().regrasAtendidas().contains("CPF valido"));
+        assertTrue(resposta.resultado().regrasAtendidas()
+                .contains("Validade de 10 anos calculada desde a emissao"));
     }
 
     @Test
-    void rejeitaDocumentoDeIdentificacaoVencido() {
+    void naoReprovaPorValidadeImpressaAntesDeCompletarDezAnosDaEmissao() {
         RespostaValidacao resposta = service.validar(new DadosDocumento(
                 "cnh.png",
                 "image/png",
-                "Nome: Joao da Silva\nCPF: 529.982.247-25\nCNH: 123456789\nValidade: 01/01/2026",
+                "Nome: Joao da Silva\nCPF: 529.982.247-25\n"
+                        + "Data de emissao: 04/11/2020\nValidade: 01/01/2026",
+                null,
+                TipoDocumento.DOCUMENTO_IDENTIFICACAO));
+
+        assertTrue(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().regrasAtendidas()
+                .contains("Data de validade impressa reconhecida"));
+        assertTrue(resposta.resultado().regrasAtendidas()
+                .contains("Validade de 10 anos calculada desde a emissao"));
+        assertFalse(resposta.resultado().pendencias().contains("Documento de identificacao vencido"));
+    }
+
+    @Test
+    void reprovaDepoisDeDezAnosDaEmissaoMesmoComValidadeImpressaFutura() {
+        RespostaValidacao resposta = service.validar(new DadosDocumento(
+                "cnh.png",
+                "image/png",
+                "Nome: Joao da Silva\nCPF: 529.982.247-25\n"
+                        + "Data de emissao: 03/11/2016\nValidade: 03/11/2036",
+                null,
+                TipoDocumento.DOCUMENTO_IDENTIFICACAO));
+
+        assertFalse(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().regrasAtendidas()
+                .contains("Data de validade impressa reconhecida"));
+        assertTrue(resposta.resultado().pendencias().contains("Documento de identificacao vencido"));
+    }
+
+    @Test
+    void naoReprovaQuandoHaValidadeImpressaMasNaoHaDataDeEmissao() {
+        RespostaValidacao resposta = service.validar(new DadosDocumento(
+                "rg.png",
+                "image/png",
+                "Nome: Joao da Silva\nCPF: 529.982.247-25\nValidade: 01/01/2026",
+                null,
+                TipoDocumento.DOCUMENTO_IDENTIFICACAO));
+
+        assertTrue(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().regrasAtendidas()
+                .contains("Data de validade impressa reconhecida"));
+        assertTrue(resposta.resultado().regrasAtendidas()
+                .contains("Validade nao avaliada por ausencia de data de emissao"));
+    }
+
+    @Test
+    void aprovaDocumentoDeIdentificacaoSemDatasQuandoNomeECpfSaoValidos() {
+        RespostaValidacao resposta = service.validar(new DadosDocumento(
+                "rg.png",
+                "image/png",
+                "Nome: Joao da Silva\nCPF: 529.982.247-25",
+                null,
+                TipoDocumento.DOCUMENTO_IDENTIFICACAO));
+
+        assertTrue(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().regrasAtendidas()
+                .contains("Validade nao avaliada por ausencia de data de emissao"));
+    }
+
+    @Test
+    void reprovaDocumentoDeIdentificacaoComMaisDeDezAnosSemValidadeImpressa() {
+        RespostaValidacao resposta = service.validar(new DadosDocumento(
+                "rg.png",
+                "image/png",
+                "Nome: Joao da Silva\nCPF: 529.982.247-25\nData de emissao: 03/11/2016",
                 null,
                 TipoDocumento.DOCUMENTO_IDENTIFICACAO));
 
         assertFalse(resposta.resultado().aprovado());
         assertTrue(resposta.resultado().pendencias().contains("Documento de identificacao vencido"));
+    }
+
+    @Test
+    void rejeitaEmissaoFuturaAoCalcularValidadeDeIdentificacao() {
+        RespostaValidacao resposta = service.validar(new DadosDocumento(
+                "rg.png",
+                "image/png",
+                "Nome: Joao da Silva\nCPF: 529.982.247-25\nData de emissao: 05/11/2026",
+                null,
+                TipoDocumento.DOCUMENTO_IDENTIFICACAO));
+
+        assertFalse(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().pendencias().contains("Data de emissao futura"));
+    }
+
+    @Test
+    void rejeitaDocumentoDeIdentificacaoComCpfInvalido() {
+        RespostaValidacao resposta = service.validar(new DadosDocumento(
+                "rg.png",
+                "image/png",
+                "Nome: Joao da Silva\nCPF: 529.982.247-24",
+                null,
+                TipoDocumento.DOCUMENTO_IDENTIFICACAO));
+
+        assertFalse(resposta.resultado().aprovado());
+        assertTrue(resposta.resultado().pendencias().contains("CPF invalido"));
     }
 
     @Test

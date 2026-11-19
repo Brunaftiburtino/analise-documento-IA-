@@ -34,7 +34,8 @@ public class ValidacaoRegrasService {
 
         switch (tipoDocumento) {
             case COMPROVANTE_RESIDENCIA -> validarComprovanteResidencia(dadosDocumento, regrasAtendidas, pendencias);
-            case DOCUMENTO_IDENTIFICACAO -> validarDocumentoIdentificacao(dadosDocumento, regrasAtendidas, pendencias);
+            case DOCUMENTO_IDENTIFICACAO -> validarDocumentoIdentificacao(
+                    dadosDocumento, regrasAtendidas, pendencias);
             case COMPROVANTE_RENDA -> validarComprovanteRenda(dadosDocumento, regrasAtendidas, pendencias);
         }
 
@@ -60,14 +61,25 @@ public class ValidacaoRegrasService {
             DadosExtraidos dados,
             List<String> regrasAtendidas,
             List<String> pendencias) {
-        validarCampo(dados.numeroDocumento(), "Numero do documento identificado",
-                "Numero do documento nao encontrado", regrasAtendidas, pendencias);
+        LocalDate hoje = LocalDate.now(clock);
         if (dados.dataValidade() != null) {
-            if (dados.dataValidade().isBefore(LocalDate.now(clock))) {
-                pendencias.add("Documento de identificacao vencido");
-            } else {
-                regrasAtendidas.add("Documento de identificacao dentro da validade");
-            }
+            regrasAtendidas.add("Data de validade impressa reconhecida");
+        }
+        if (dados.dataEmissao() == null) {
+            regrasAtendidas.add("Validade nao avaliada por ausencia de data de emissao");
+            return;
+        }
+        if (dados.dataEmissao().isAfter(hoje)) {
+            pendencias.add("Data de emissao futura");
+            return;
+        }
+
+        LocalDate validade = dados.dataEmissao().plusYears(10);
+        regrasAtendidas.add("Validade de 10 anos calculada desde a emissao");
+        if (validade.isBefore(hoje)) {
+            pendencias.add("Documento de identificacao vencido");
+        } else {
+            regrasAtendidas.add("Documento de identificacao dentro da validade");
         }
     }
 

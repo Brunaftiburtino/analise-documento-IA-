@@ -16,25 +16,33 @@ public class ExtratorDadosService {
     private static final String NOME_ROTULOS =
             "Nome(?:\\s+(?:(?:do|da)\\s+)?(?:cliente|titular|consumidor|portador|"
                     + "benefici[aá]rio|funcion[aá]rio|colaborador|completo|social))?"
-                    + "|Titular|Cliente|Consumidor|Benefici[aá]rio";
+                    + "|Name(?:\\s+(?:Social|Complete))?|Titular|Cliente|Consumidor|Benefici[aá]rio";
     private static final String CPF_ROTULOS =
             "CPF(?:\\s*/\\s*CNPJ)?(?:\\s+(?:(?:do|da)\\s+)?(?:cliente|titular|portador))?"
-                    + "|CNPJ";
+                    + "|CNPJ|Personal\\s+Number";
     private static final String ENDERECO_ROTULOS =
             "Endere[cç]o(?:\\s+(?:(?:da|do|de)\\s+)?(?:unidade(?:\\s+consumidora)?|"
-                    + "cliente|titular|portador|im[oó]vel|instala[cç][aã]o))?|Logradouro";
-    private static final String CIDADE_ROTULOS = "Cidade|Munic[ií]pio";
-    private static final String CEP_ROTULOS = "CEP";
+                    + "cliente|titular|portador|im[oó]vel|instala[cç][aã]o))?|Logradouro|Address";
+    private static final String CIDADE_ROTULOS = "Cidade|Munic[ií]pio|City|Municipality";
+    private static final String CEP_ROTULOS = "CEP|ZIP\\s+Code|Postal\\s+Code";
     private static final String EMISSAO_ROTULOS =
             "Data\\s+de\\s+(?:emiss[aã]o|apresenta[cç][aã]o)"
-                    + "|Emiss[aã]o|Apresenta[cç][aã]o|Expedi[cç][aã]o|Emitido\\s+em";
+                    + "|Emiss[aã]o|Apresenta[cç][aã]o|Expedi[cç][aã]o|Emitido\\s+em"
+                    + "|Date\\s+of\\s+(?:Issue|Presentation)|Issue\\s+Date";
     private static final String VALIDADE_ROTULOS =
-            "Data\\s+de\\s+validade|Validade|V[aá]lido\\s+at[eé]";
+            "Data\\s+de\\s+validade|Validade|V[aá]lido\\s+at[eé]"
+                    + "|Date\\s+of\\s+Expiry|Expiry\\s+Date|Expiration\\s+Date|Valid\\s+Until";
     private static final String NUMERO_DOCUMENTO_ROTULOS =
-            "N[uú]mero\\s+do\\s+(?:documento|registro)|Registro(?:\\s+Geral)?|RG|CNH";
+            "N[uú]mero\\s+do\\s+(?:documento|registro)|Registro(?:\\s+Geral)?|RG|CNH"
+                    + "|Document\\s+Number|Registration\\s+Number";
     private static final String RENDA_ROTULOS =
             "Renda\\s+mensal|Sal[aá]rio(?:\\s+(?:bruto|l[ií]quido|base))?|"
-                    + "Total\\s+de\\s+(?:proventos|vencimentos)|Valor\\s+l[ií]quido";
+                    + "Total\\s+de\\s+(?:proventos|vencimentos)|Valor\\s+l[ií]quido"
+                    + "|Monthly\\s+Income|Salary";
+    private static final String ROTULOS_CONTEXTO =
+            "Data\\s+de\\s+nascimento|Nascimento|Date\\s+of\\s+Birth|Birth|Sexo|Sex|"
+                    + "G[eê]nero|Gender|Nacionalidade|Nationality|Naturalidade|"
+                    + "Place\\s+of\\s+Birth|Assinatura|Signature";
     private static final String TODOS_ROTULOS = String.join("|",
             NOME_ROTULOS,
             CPF_ROTULOS,
@@ -44,7 +52,8 @@ public class ExtratorDadosService {
             EMISSAO_ROTULOS,
             VALIDADE_ROTULOS,
             NUMERO_DOCUMENTO_ROTULOS,
-            RENDA_ROTULOS);
+            RENDA_ROTULOS,
+            ROTULOS_CONTEXTO);
 
     private static final Pattern CAMPO_NOME = campo(NOME_ROTULOS);
     private static final Pattern CAMPO_CPF = campo(CPF_ROTULOS);
@@ -56,7 +65,7 @@ public class ExtratorDadosService {
     private static final Pattern CAMPO_NUMERO_DOCUMENTO = campo(NUMERO_DOCUMENTO_ROTULOS);
     private static final Pattern CAMPO_RENDA = campo(RENDA_ROTULOS);
     private static final Pattern QUALQUER_ROTULO = Pattern.compile(
-            "(?iu)^\\h*(?:" + TODOS_ROTULOS + ")\\b(?:\\h*[:：|].*)?$");
+            "(?iu)^\\h*(?:" + TODOS_ROTULOS + ")\\b(?:\\h*[/|–-].*)?(?:\\h*[:：|].*)?$");
     private static final Pattern PROXIMO_ROTULO = Pattern.compile(
             "(?iu)\\h+(?=(?:" + TODOS_ROTULOS + ")\\b)");
     private static final Pattern CPF_VALOR = Pattern.compile(
@@ -67,9 +76,17 @@ public class ExtratorDadosService {
             "(?<!\\d)(?:(\\d{1,2})\\s*[./-]\\s*(\\d{1,2})\\s*[./-]\\s*(\\d{4})"
                     + "|(\\d{4})-(\\d{2})-(\\d{2}))(?!\\d)");
     private static final Pattern NUMERO_DOCUMENTO_VALOR = Pattern.compile(
-            "(?iu)[\\p{Alnum}][\\p{Alnum}./-]{4,19}");
+            "(?iu)(?=[\\p{Alnum}./-]{5,20})(?=[\\p{Alnum}./-]*\\d)"
+                    + "[\\p{Alnum}][\\p{Alnum}./-]{4,19}");
     private static final Pattern RENDA_VALOR = Pattern.compile(
             "(?iu)(?:R\\s?\\$\\s*)?(\\d{1,3}(?:\\.\\d{3})*(?:,\\d{2})|\\d+(?:[.,]\\d{1,2})?)");
+    private static final Pattern ALIAS_BILINGUE = Pattern.compile(
+            "(?iu)^[\\h/|:：–-]*(?:Name(?:\\s+Social)?|Personal\\s+Number|"
+                    + "Date\\s+of\\s+(?:Birth|Expiry|Issue|Presentation)|"
+                    + "Expiry\\s+Date|Expiration\\s+Date|Valid\\s+Until|"
+                    + "Address|City|Municipality|ZIP\\s+Code|Postal\\s+Code|"
+                    + "Sex|Gender|Nationality|Place\\s+of\\s+Birth|Signature)"
+                    + "\\b[\\h/|:：–-]*");
     private static final List<Pattern> CAMPOS = List.of(
             CAMPO_NOME,
             CAMPO_CPF,
@@ -121,15 +138,19 @@ public class ExtratorDadosService {
                 continue;
             }
 
-            String valor = limparValor(matcher.group("valor"));
+            String valor = limparAliasBilingue(limparValor(matcher.group("valor")));
             if (!valor.isEmpty()) {
                 return cortarNoProximoRotulo(valor);
             }
-            if (indice + 1 < linhas.length) {
-                String proximaLinha = limparValor(linhas[indice + 1]);
-                if (!proximaLinha.isEmpty() && !ehRotulo(proximaLinha)) {
-                    return cortarNoProximoRotulo(proximaLinha);
+            for (int proxima = indice + 1; proxima < linhas.length; proxima++) {
+                String proximaLinha = limparAliasBilingue(limparValor(linhas[proxima]));
+                if (proximaLinha.isEmpty()) {
+                    continue;
                 }
+                if (ehRotulo(proximaLinha)) {
+                    break;
+                }
+                return cortarNoProximoRotulo(proximaLinha);
             }
         }
         return null;
@@ -137,6 +158,10 @@ public class ExtratorDadosService {
 
     private static String limparValor(String valor) {
         return valor == null ? "" : valor.trim().replaceAll("^[：:]+\\h*", "");
+    }
+
+    private static String limparAliasBilingue(String valor) {
+        return ALIAS_BILINGUE.matcher(valor).replaceFirst("").trim();
     }
 
     private static boolean ehRotulo(String linha) {
@@ -157,15 +182,11 @@ public class ExtratorDadosService {
     }
 
     private static String extrairCpf(String texto) {
-        String valor = extrairCampo(texto, CAMPO_CPF);
+        String valor = extrairValorTipado(texto, CAMPO_CPF, CPF_VALOR, 1);
         if (valor == null) {
             return null;
         }
-        Matcher matcher = CPF_VALOR.matcher(valor);
-        if (!matcher.find()) {
-            return null;
-        }
-        String digitos = matcher.group(1).replaceAll("\\D", "");
+        String digitos = valor.replaceAll("\\D", "");
         return digitos.length() == 11
                 ? digitos.substring(0, 3) + "." + digitos.substring(3, 6) + "."
                         + digitos.substring(6, 9) + "-" + digitos.substring(9)
@@ -173,16 +194,16 @@ public class ExtratorDadosService {
     }
 
     private static String extrairCep(String texto) {
-        String valor = extrairCampo(texto, CAMPO_CEP);
+        String valor = extrairValorTipado(texto, CAMPO_CEP, CEP_VALOR, 0);
         if (valor == null) {
             return null;
         }
-        Matcher matcher = CEP_VALOR.matcher(valor);
-        return matcher.find() ? matcher.group(1) + "-" + matcher.group(2) : null;
+        String digitos = valor.replaceAll("\\D", "");
+        return digitos.length() == 8 ? digitos.substring(0, 5) + "-" + digitos.substring(5) : null;
     }
 
     private static LocalDate extrairData(String texto, Pattern campo) {
-        String valor = extrairCampo(texto, campo);
+        String valor = extrairValorTipado(texto, campo, DATA_VALOR, 0);
         if (valor == null) {
             return null;
         }
@@ -207,20 +228,43 @@ public class ExtratorDadosService {
     }
 
     private static String extrairNumeroDocumento(String texto) {
-        String valor = extrairCampo(texto, CAMPO_NUMERO_DOCUMENTO);
-        if (valor == null) {
-            return null;
-        }
-        Matcher matcher = NUMERO_DOCUMENTO_VALOR.matcher(valor);
-        return matcher.find() ? matcher.group() : null;
+        return extrairValorTipado(texto, CAMPO_NUMERO_DOCUMENTO, NUMERO_DOCUMENTO_VALOR, 0);
     }
 
     private static String extrairRenda(String texto) {
-        String valor = extrairCampo(texto, CAMPO_RENDA);
-        if (valor == null) {
-            return null;
+        return extrairValorTipado(texto, CAMPO_RENDA, RENDA_VALOR, 1);
+    }
+
+    private static String extrairValorTipado(
+            String texto,
+            Pattern rotulo,
+            Pattern padraoValor,
+            int grupoValor) {
+        String[] linhas = texto.split("\n", -1);
+        for (int indice = 0; indice < linhas.length; indice++) {
+            Matcher matcherRotulo = rotulo.matcher(linhas[indice]);
+            if (!matcherRotulo.find()) {
+                continue;
+            }
+
+            String valorNaLinha = matcherRotulo.group("valor");
+            Matcher matcherValor = padraoValor.matcher(valorNaLinha);
+            if (matcherValor.find()) {
+                return matcherValor.group(grupoValor);
+            }
+
+            for (int proxima = indice + 1; proxima < linhas.length; proxima++) {
+                String linha = limparValor(linhas[proxima]);
+                if (linha.isEmpty()) {
+                    continue;
+                }
+                if (ehRotulo(linha)) {
+                    break;
+                }
+                matcherValor = padraoValor.matcher(cortarNoProximoRotulo(linha));
+                return matcherValor.find() ? matcherValor.group(grupoValor) : null;
+            }
         }
-        Matcher matcher = RENDA_VALOR.matcher(valor);
-        return matcher.find() ? matcher.group(1) : null;
+        return null;
     }
 }

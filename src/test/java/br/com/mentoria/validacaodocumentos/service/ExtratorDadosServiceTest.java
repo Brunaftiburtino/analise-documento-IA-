@@ -77,4 +77,22 @@ class ExtratorDadosServiceTest {
 
         assertEquals(LocalDate.of(2026, 11, 15), dados.dataEmissao());
     }
+
+    @Test
+    void extraiCpfENomesComRotulosBilinguesEValoresEmLinhasSeparadas() {
+        DadosExtraidos dados = service.extrair(
+                "Nome / Name\n"
+                        + "Ana Maria de Souza\n"
+                        + "Registro Geral - CPF / Personal Number Sexo / Sex\n"
+                        + "529.982.247-25 F\n"
+                        + "Data de Nascimento / Date of Birth\n"
+                        + "02/03/1985\n"
+                        + "Data de Validade / Date of Expiry\n"
+                        + "31/12/2030");
+
+        assertEquals("Ana Maria de Souza", dados.nome());
+        assertEquals("529.982.247-25", dados.cpf());
+        assertNull(dados.dataEmissao());
+        assertEquals(LocalDate.of(2030, 12, 31), dados.dataValidade());
+    }
 }

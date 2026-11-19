@@ -29,7 +29,7 @@ public class TesseractOcrService {
             @Value("${app.ocr.command:}") String command,
             @Value("${app.ocr.tessdata-path:}") String tessdataPath,
             @Value("${app.ocr.language:por}") String language,
-            @Value("${app.ocr.page-segmentation-mode:11}") int pageSegmentationMode) {
+            @Value("${app.ocr.page-segmentation-mode:3}") int pageSegmentationMode) {
         if (pageSegmentationMode < 0 || pageSegmentationMode > 13) {
             throw new IllegalArgumentException("app.ocr.page-segmentation-mode deve estar entre 0 e 13.");
         }

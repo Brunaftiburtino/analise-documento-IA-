@@ -7,7 +7,7 @@ API didática em Spring Boot para demonstrar um pipeline de validação. O servi
 - **Problema:** reduzir o tempo e o retrabalho da conferência manual de documentos usados em cadastros e análises financeiras.
 - **Usuário:** analistas de cadastro e equipes de backoffice de empresas.
 - **Documentos:** comprovante de residência, documento de identificação (RG/CNH) e comprovante de renda.
-- **Dados:** nome e CPF em todos; endereço e CEP para residência; número e validade (quando impressa) para identificação; renda mensal para comprovante de renda; data de emissão quando aplicável.
+- **Dados:** nome e CPF em todos; endereço e CEP para residência; a data de emissão permite calcular a validade de identificação em 10 anos (a validade impressa também é extraída); renda mensal para comprovante de renda; data de emissão quando aplicável.
 - **Fluxo:** upload de imagem ou envio de texto → OCR → extração local ou IA → regras específicas do tipo → resultado persistido → consulta por identificador ou histórico.
 - **Armazenamento:** H2 local para demonstração. São guardados os dados extraídos e o resultado; a imagem original e o texto integral do documento não são armazenados.
 - **Limite do MVP:** o sistema verifica presença/formato dos campos, CPF, datas e valor de renda. Não verifica autenticidade do documento, titularidade da conta/endereço nem capacidade de pagamento. Uma falha técnica de OCR é reportada como erro, não como reprovação de negócio.
@@ -33,7 +33,7 @@ flowchart LR
 ### Regras de aprovação
 
 - **Residência:** nome, CPF válido, endereço, CEP com oito dígitos e emissão há no máximo 90 dias, sem data futura.
-- **Identificação:** nome, CPF válido e número do documento. Se houver data de validade no texto, ela não pode estar vencida; não se presume uma data de vencimento para documentos sem validade impressa.
+- **Identificação:** nome e CPF válido são obrigatórios. A data de validade impressa é extraída, mas a reprovação por vencimento ocorre somente depois de 10 anos da emissão. Sem data de emissão, a validade não é avaliada e sua ausência não reprova o documento. O número do documento não interfere na aprovação.
 - **Renda:** nome, CPF válido, renda mensal positiva e data de emissão há no máximo 90 dias, sem data futura.
 - **Rejeição:** campo obrigatório ausente/inválido ou regra específica não atendida. O resultado lista as pendências.
 
@@ -44,7 +44,7 @@ flowchart LR
 3. Clique em **Validar documento**. Mostre o status aprovado, os dados extraídos, as regras atendidas e o protocolo.
 4. Para demonstrar uma reprovação, remova a linha do CEP ou altere o CPF para um valor inválido e valide novamente. A interface deve mostrar a pendência.
 5. Selecione a segunda validação no histórico para mostrar a consulta de um resultado persistido.
-6. Para demonstrar outro tipo, selecione **Documento de identificação** e use um texto com `Nome`, `CPF` e `RG` ou `CNH`. Para renda, use também `Renda mensal: R$ 2.500,00` e uma `Data de emissao` recente.
+6. Para demonstrar outro tipo, selecione **Documento de identificação** e use um texto com `Nome`, `CPF` e `Data de emissao` ou `Validade`. Para renda, use também `Renda mensal: R$ 2.500,00` e uma `Data de emissao` recente.
 
 O modo de texto não depende de serviços externos. Para demonstrar o caminho de imagem, configure o Tesseract e envie uma imagem legível com campos compatíveis com o tipo escolhido. A qualidade do OCR depende da imagem, do idioma e dos dados instalados no ambiente.
 
@@ -52,7 +52,7 @@ O modo de texto não depende de serviços externos. Para demonstrar o caminho de
 
 - **Uma aplicação para API e interface:** a página estática é servida pelo Spring Boot junto com a API. Isso deixa a demonstração simples de executar e evita manter um segundo servidor ou processo de build do front-end.
 - **Regras determinísticas no servidor:** a IA e o OCR ajudam a interpretar o conteúdo, mas a decisão é calculada em Java. Assim, os critérios de aprovação podem ser testados e não dependem de a IA decidir se um documento está aprovado.
-- **Extração flexível para documentos diferentes:** cada tipo possui campos e regras próprias. Um campo opcional, como validade impressa em alguns documentos, não deve ser inventado quando não aparece no texto.
+- **Validade de identificação:** a data de emissão é a referência para contar 10 anos, mesmo quando o documento tem uma data de validade impressa. A data impressa é extraída para consulta, mas não antecipa nem estende esse prazo. Sem data de emissão, a validade não é avaliada e o documento não é reprovado por esse motivo.
 - **Falha técnica não é reprovação:** um erro ao chamar OCR ou IA é diferente de um documento que não atende às regras. A API reporta falhas de processamento como erro para não confundir a decisão de negócio.
 - **Minimização de dados:** o histórico armazena campos extraídos e resultado, não a imagem nem o texto integral. Mesmo assim, nome e CPF são dados pessoais; o banco local de demonstração deve ser protegido e não receber documentos reais sem definir controles de acesso, retenção e segurança apropriados.
 - **Persistência adequada ao protótipo:** H2 em arquivo facilita executar e demonstrar o MVP. Não substitui a configuração, operação, controle de acesso e cópias de segurança de um banco de produção.
@@ -194,7 +194,7 @@ Verifique se o Tesseract encontra o modelo:
 
 O OCR aceita imagens PNG, JPEG, TIFF e BMP. Quando configurado, o pré-processamento OpenCV ocorre antes do Tesseract. Ambos são executados localmente, sem passar argumentos por um shell.
 
-O Tesseract usa o modo de segmentação `11` por padrão, adequado a textos dispersos em documentos. Para testar outro modo sem alterar o código, configure `APP_OCR_PSM` (por exemplo, `6` para um bloco de texto ou `4` para colunas). O melhor modo depende do layout; compare a saída OCR localmente antes de escolher.
+O Tesseract usa o modo de segmentação `3` por padrão, que analisa automaticamente o layout da página. Para documentos com outro layout, teste `APP_OCR_PSM` (por exemplo, `6` para um bloco de texto ou `4` para colunas). O melhor modo depende do documento; compare a saída OCR localmente antes de escolher.
 
 Se o Tesseract não estiver configurado e o request contiver `conteudoDocumento`, esse texto continua sendo usado como fallback. Sem texto e sem OCR configurado, a API retorna `400 Bad Request`.
 
